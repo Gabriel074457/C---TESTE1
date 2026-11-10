@@ -1,0 +1,438 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <ctype.h>
+#include <time.h>
+
+#define MAX 10
+#define VALOR_MAXIMO 1e12
+
+/*Projeto- Exchange de Criptomoedas
+*AUTOR : Gabriel Fernandes de Oliveira
+*DATA: 25/10/2026
+*/
+
+/* run this program using the console pauser or add your own getch, system("pause") or input loop */
+
+/*Login*/
+
+struct Investidor {
+	char cpf[12];
+	char senha[7];
+	char nome[60];
+	double reais;
+	double cripto[3];
+};
+
+struct Investidor investidores[MAX];
+int total = 0;
+
+double cot[3] = {350000.0, 15000.0, 3.0};
+char sigla[3][4] = {"BTC", "ETH", "XRP"};
+char moeda[3][10] = {"Bitcoin", "Ethereum", "Ripple"};
+double taxaCompra[3] = {0.02, 0.01, 0.01};
+double taxaVenda[3] = {0.03, 0.02, 0.01};
+
+double arred(double x) {
+	char t[400];
+	sprintf(t, "%.2f", x);
+	sscanf(t, "%lf", &x);
+	if (x < 0.005 && x > -0.005) x = 0;
+	return x;
+}
+
+void linha(void) {
+	int i;
+	for (i = 0; i < 30; i++) putchar('-');
+	putchar('\n');
+}
+
+void lerLinha(const char *msg, char *t, int tam) {
+	char *nl;
+	int ch;
+	printf("%s", msg);
+	if (fgets(t, tam, stdin) == NULL) exit(0);
+	nl = strchr(t, '\n');
+	if (nl != NULL) *nl = '\0';
+	else while ((ch = getchar()) != '\n' && ch != EOF);
+}
+
+void lerTexto(const char *msg, char *dest, int tam) {
+	char t[50], palavra[50];
+	lerLinha(msg, t, sizeof(t));
+	if (sscanf(t, "%s", palavra) != 1 || (int) strlen(palavra) >= tam) {
+		dest[0] = '\0';
+		return;
+	}
+	strcpy(dest, palavra);
+}
+
+double lerNum(const char *msg) {
+	char t[50];
+	int i = 0, j, pontos = 0, digitos = 0;
+	char *fim;
+	double v;
+	lerLinha(msg, t, sizeof(t));
+	while (isspace((unsigned char) t[i])) i++;
+	for (j = i; t[j] != '\0'; j++) {
+		if (t[j] == ',') t[j] = '.';
+		if (t[j] == '.') {
+			pontos++;
+		} else if (isdigit((unsigned char) t[j])) {
+			digitos++;
+		} else if (isspace((unsigned char) t[j])) {
+			while (t[j] != '\0') {
+				if (!isspace((unsigned char) t[j])) return -1;
+				j++;
+			}
+			break;
+		} else {
+			return -1;
+		}
+	}
+	if (pontos > 1 || digitos == 0) return -1;
+	v = strtod(t + i, &fim);
+	if (fim == t + i) return -1;
+	return v;
+}
+
+int lerInt(const char *msg) {
+	char t[50], *fim;
+	long v;
+	lerLinha(msg, t, sizeof(t));
+	v = strtol(t, &fim, 10);
+	if (fim == t || v < 0 || v > 1000000) return -1;
+	while (isspace((unsigned char) *fim)) fim++;
+	if (*fim != '\0') return -1;
+	return (int) v;
+}
+
+double lerValor(const char *msg) {
+	double v = lerNum(msg);
+	if (v < 0 || v > VALOR_MAXIMO) return -1;
+	v = arred(v);
+	return (v < 0.01) ? -1 : v;
+}
+
+int soDigitos(const char *s, int tam) {
+	int i;
+	if ((int) strlen(s) != tam) return 0;
+	for (i = 0; i < tam; i++)
+		if (!isdigit((unsigned char) s[i])) return 0;
+	return 1;
+}
+
+void salvarInvestidores(void) {
+	FILE *f = fopen("investidores.txt", "w");
+	struct Investidor *p;
+	int i, ok = 1;
+	if (f == NULL) {
+		printf("Erro ao abrir o arquivo!\n");
+		return;
+	}
+	for (i = 0; i < total; i++) {
+		p = investidores + i;
+		if (fprintf(f, "%s %s %.2f %.8f %.8f %.8f %s\n", (*p).cpf, (*p).senha, (*p).reais,
+			(*p).cripto[0], (*p).cripto[1], (*p).cripto[2], (*p).nome) < 0) ok = 0;
+	}
+	if (fclose(f) != 0) ok = 0;
+	if (!ok) printf("Erro ao gravar o arquivo!\n");
+}
+
+void carregarInvestidores(void) {
+	FILE *f = fopen("investidores.txt", "r");
+	struct Investidor *p;
+	if (f != NULL) {
+		while (total < MAX) {
+			p = investidores + total;
+			if (fscanf(f, "%11s %6s %lf %lf %lf %lf %59[^\n]", (*p).cpf, (*p).senha, &(*p).reais,
+				&(*p).cripto[0], &(*p).cripto[1], &(*p).cripto[2], (*p).nome) != 7) break;
+			total++;
+		}
+		fclose(f);
+		printf("Investidores carregados com sucesso!\n");
+	} else {
+		printf("Arquivo de investidores nao existe...\n");
+	}
+	if (total == 0) {
+		strcpy(investidores[0].cpf, "12345678900");
+		strcpy(investidores[0].senha, "123456");
+		strcpy(investidores[0].nome, "Gabriela Biondi");
+		total = 1;
+		salvarInvestidores();
+	}
+}
+
+void salvarCotacoes(void) {
+	FILE *f = fopen("cotacoes.txt", "w");
+	if (f == NULL) {
+		printf("Erro ao abrir o arquivo!\n");
+		return;
+	}
+	fprintf(f, "%.6f\n%.6f\n%.6f\n", cot[0], cot[1], cot[2]);
+	fclose(f);
+}
+
+void carregarCotacoes(void) {
+	FILE *f = fopen("cotacoes.txt", "r");
+	double c[3];
+	if (f == NULL) {
+		printf("Arquivo de cotacoes nao existe...\n");
+		return;
+	}
+	if (fscanf(f, "%lf %lf %lf", &c[0], &c[1], &c[2]) == 3 && c[0] > 0 && c[1] > 0 && c[2] > 0) {
+		cot[0] = c[0];
+		cot[1] = c[1];
+		cot[2] = c[2];
+		printf("Cotacoes carregadas com sucesso!\n");
+	} else {
+		printf("Arquivo de cotacoes invalido, usando as cotacoes padrao...\n");
+	}
+	fclose(f);
+}
+
+struct Investidor *buscaLogin(void) {
+	char cpf[12], senha[12];
+	int i;
+	while (1) {
+		lerTexto("Digite o CPF: ", cpf, sizeof(cpf));
+		lerTexto("Digite a senha: ", senha, sizeof(senha));
+		if (soDigitos(cpf, 11) && soDigitos(senha, 6)) {
+			for (i = 0; i < total; i++)
+				if (strcmp(investidores[i].cpf, cpf) == 0 && strcmp(investidores[i].senha, senha) == 0) {
+					printf("Login concluido!\n");
+					return investidores + i;
+				}
+		}
+		printf("CPF ou senha nao foram encontrados...\n");
+	}
+}
+
+int confereSenha(struct Investidor *p) {
+	char s[12];
+	lerTexto("Digite a senha (6 digitos): ", s, sizeof(s));
+	if (strcmp(s, (*p).senha) == 0) return 1;
+	printf("Senha incorreta!\n");
+	return 0;
+}
+
+void cabecalho(struct Investidor *p) {
+	linha();
+	printf("Informacoes do investidor:\n");
+	printf("Nome: %s\n", (*p).nome);
+	printf("CPF: %c%c%c.%c%c%c.%c%c%c-%c%c\n", (*p).cpf[0], (*p).cpf[1], (*p).cpf[2],
+		(*p).cpf[3], (*p).cpf[4], (*p).cpf[5], (*p).cpf[6], (*p).cpf[7], (*p).cpf[8],
+		(*p).cpf[9], (*p).cpf[10]);
+}
+
+void saldos(struct Investidor *p) {
+	printf("Reais: %.2f\nBitcoin: %.8f\nEthereum: %.8f\nRipple: %.8f\n",
+		(*p).reais, (*p).cripto[0], (*p).cripto[1], (*p).cripto[2]);
+}
+
+void gravar(struct Investidor *p, char sinal, double valor, char *m, double ct, double tx) {
+	FILE *f = fopen("extrato.txt", "a");
+	char data[20];
+	time_t agora = time(NULL);
+	if (f == NULL) {
+		printf("Erro ao abrir o arquivo!\n");
+		return;
+	}
+	strftime(data, sizeof(data), "%d-%m-%Y %H:%M", localtime(&agora));
+	fprintf(f, "%s %s %c %.2f %s CT: %.2f TX: %.2f REAL: %.2f BTC: %.8f ETH: %.8f XRP: %.8f\n",
+		(*p).cpf, data, sinal, valor, m, ct, tx, (*p).reais, (*p).cripto[0], (*p).cripto[1],
+		(*p).cripto[2]);
+	fclose(f);
+}
+
+void consultaSaldo(struct Investidor *p) {
+	if (!confereSenha(p)) return;
+	cabecalho(p);
+	saldos(p);
+	linha();
+}
+
+void consultaExtrato(struct Investidor *p) {
+	FILE *f;
+	char linhaExtrato[1024];
+	int achou = 0;
+	if (!confereSenha(p)) return;
+	cabecalho(p);
+	linha();
+	f = fopen("extrato.txt", "r");
+	if (f == NULL) {
+		printf("Nenhuma operacao registrada...\n");
+		linha();
+		return;
+	}
+	while (fgets(linhaExtrato, sizeof(linhaExtrato), f) != NULL) {
+		if (strchr(linhaExtrato, '\n') == NULL && !feof(f)) {
+			int ch;
+			while ((ch = fgetc(f)) != '\n' && ch != EOF);
+		}
+		if (strncmp(linhaExtrato, (*p).cpf, 11) == 0) {
+			printf("%s", linhaExtrato + 12);
+			achou = 1;
+		}
+	}
+	fclose(f);
+	if (!achou) printf("Nenhuma operacao registrada...\n");
+	linha();
+}
+
+void depositaReais(struct Investidor *p) {
+	double v;
+	if (!confereSenha(p)) return;
+	v = lerValor("Digite o valor do deposito (R$): ");
+	if (v < 0) {
+		printf("Valor invalido! (minimo R$ 0,01)\n");
+		return;
+	}
+	(*p).reais = arred((*p).reais + v);
+	gravar(p, '+', v, "REAL", 0, 0);
+	printf("Deposito concluido com sucesso!\n");
+	saldos(p);
+}
+
+void sacaReais(struct Investidor *p) {
+	double v;
+	if (!confereSenha(p)) return;
+	v = lerValor("Digite o valor do saque (R$): ");
+	if (v < 0) {
+		printf("Valor invalido! (minimo R$ 0,01)\n");
+		return;
+	}
+	if (v > (*p).reais + 0.005) {
+		printf("Saldo insuficiente!\n");
+		return;
+	}
+	(*p).reais = arred((*p).reais - v);
+	gravar(p, '-', v, "REAL", 0, 0);
+	printf("Saque concluido com sucesso!\n");
+	saldos(p);
+}
+
+int escolheCripto(void) {
+	int i, op;
+	for (i = 0; i < 3; i++)
+		printf("%d - %s (%s): R$ %.2f\n", i + 1, moeda[i], sigla[i], cot[i]);
+	op = lerInt("Digite o numero da criptomoeda (1-3): ");
+	if (op < 1 || op > 3) {
+		printf("Opcao invalida!\n");
+		return -1;
+	}
+	return op - 1;
+}
+
+void compraCripto(struct Investidor *p) {
+	int c;
+	double v, taxa, custo;
+	if (!confereSenha(p)) return;
+	c = escolheCripto();
+	if (c < 0) return;
+	v = lerValor("Digite quanto deseja comprar (R$, sem a taxa): ");
+	if (v < 0) {
+		printf("Valor invalido! (minimo R$ 0,01)\n");
+		return;
+	}
+	taxa = arred(v * taxaCompra[c]);
+	custo = arred(v + taxa);
+	if (custo > (*p).reais + 0.005) {
+		printf("Saldo insuficiente! Custo com taxa: R$ %.2f\n", custo);
+		return;
+	}
+	(*p).reais = arred((*p).reais - custo);
+	(*p).cripto[c] += v / cot[c];
+	gravar(p, '+', v, sigla[c], cot[c], taxaCompra[c]);
+	printf("Compra concluida com sucesso!\n");
+	saldos(p);
+}
+
+void vendeCripto(struct Investidor *p) {
+	int c;
+	double v, qtd, max, taxa;
+	if (!confereSenha(p)) return;
+	c = escolheCripto();
+	if (c < 0) return;
+	max = arred((*p).cripto[c] * cot[c]);
+	printf("Voce pode vender ate R$ %.2f\n", max);
+	v = lerValor("Digite quanto deseja vender (R$, antes da taxa): ");
+	if (v < 0) {
+		printf("Valor invalido! (minimo R$ 0,01)\n");
+		return;
+	}
+	if (v > max + 0.005) {
+		printf("Saldo insuficiente!\n");
+		return;
+	}
+	qtd = v / cot[c];
+	if (v >= max - 0.005 || qtd > (*p).cripto[c]) qtd = (*p).cripto[c];
+	(*p).cripto[c] -= qtd;
+	if ((*p).cripto[c] < 1e-9) (*p).cripto[c] = 0;
+	taxa = arred(v * taxaVenda[c]);
+	(*p).reais = arred((*p).reais + v - taxa);
+	gravar(p, '-', v, sigla[c], cot[c], taxaVenda[c]);
+	printf("Venda concluida com sucesso!\n");
+	saldos(p);
+}
+
+void atualizaCotacao(void) {
+	int i;
+	for (i = 0; i < 3; i++) {
+		cot[i] = cot[i] * (0.95 + (rand() % 10001) / 100000.0);
+		printf("%s: R$ %.2f\n", sigla[i], cot[i]);
+	}
+	printf("Cotacoes atualizadas com sucesso!\n");
+}
+
+int menu(void) {
+	printf("\n****** EXCHANGE DE CRIPTOMOEDAS ******\n");
+	printf("1 - Consultar saldo\n");
+	printf("2 - Consultar extrato\n");
+	printf("3 - Depositar\n");
+	printf("4 - Sacar\n");
+	printf("5 - Comprar criptomoedas\n");
+	printf("6 - Vender criptomoedas\n");
+	printf("7 - Atualizar cotacao\n");
+	printf("0 - Sair\n");
+	return lerInt("Digite a opcao: ");
+}
+
+int main(void) {
+	struct Investidor *u;
+	int resp;
+	srand((unsigned int) time(NULL));
+	carregarInvestidores();
+	carregarCotacoes();
+	u = buscaLogin();
+	while (1) {
+		resp = menu();
+		if (resp == 1) {
+			consultaSaldo(u);
+		} else if (resp == 2) {
+			consultaExtrato(u);
+		} else if (resp == 3) {
+			depositaReais(u);
+			salvarInvestidores();
+		} else if (resp == 4) {
+			sacaReais(u);
+			salvarInvestidores();
+		} else if (resp == 5) {
+			compraCripto(u);
+			salvarInvestidores();
+		} else if (resp == 6) {
+			vendeCripto(u);
+			salvarInvestidores();
+		} else if (resp == 7) {
+			atualizaCotacao();
+			salvarCotacoes();
+		} else if (resp == 0) {
+			break;
+		} else if (resp < 0) {
+			printf("Entrada invalida! Digite um numero.\n");
+		} else {
+			printf("Opcao invalida!\n");
+		}
+	}
+	return 0;
+}
